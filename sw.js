@@ -1,14 +1,14 @@
 // Service Worker — Les Phénix Trésorerie
 // Stratégie : "network-first" pour la page (toujours la dernière version si connecté),
 // avec repli sur le cache si hors ligne.
-
-const CACHE_NAME = 'phenix-tresorerie-v1';
+ 
+const CACHE_NAME = 'phenix-tresorerie-v2';
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json'
 ];
-
+ 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -17,7 +17,7 @@ self.addEventListener('install', (event) => {
       .catch(() => {})
   );
 });
-
+ 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
@@ -27,11 +27,11 @@ self.addEventListener('activate', (event) => {
       .then(() => self.clients.claim())
   );
 });
-
+ 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if(req.method !== 'GET') return;
-
+ 
   // Page principale : toujours essayer le réseau en premier pour avoir la dernière version
   if(req.mode === 'navigate' || req.destination === 'document'){
     event.respondWith(
@@ -45,7 +45,7 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-
+ 
   // Icônes et autres fichiers statiques : cache d'abord, réseau en secours
   event.respondWith(
     caches.match(req).then((cached) => {
