@@ -14,6 +14,7 @@ const todayStr = () => ymd(new Date());
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const fmtLong = (d) => cap(d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }));
 const fmtTime = (ts) => new Date(ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+const clockHtml = (d) => `${pad(d.getHours())}<span class="colon">:</span>${pad(d.getMinutes())}`;
 const initial = (name) => (name || '?').trim().charAt(0).toUpperCase();
 const ls = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
@@ -150,6 +151,7 @@ const state = {
   loadedMessages: false,
 };
 let unsubs = [];
+let renderedMsgTs = 0;
 const stopSubs = () => { unsubs.forEach((u) => u && u()); unsubs = []; };
 
 const member = (id) => state.members.find((m) => m.id === id) || { id, name: 'Ancien membre', color: '#999' };
@@ -214,7 +216,7 @@ const colorPicker = (current) => `<div class="colors">${COLORS.map((c) =>
 function evItem(ev, withDate) {
   const meta = [CATEGORIES[ev.category] || '', withDate ? fmtLong(parseYmd(withDate)) : '', ev.notes ? '📝' : ''].filter(Boolean).join(' · ');
   return `<button class="ev" style="--c:${esc(evColor(ev))}" data-action="edit-event" data-id="${esc(ev.id)}">
-    <span class="ev-time">${esc(evTime(ev))}</span>
+    <span class="ev-time">${ev.allDay || !ev.time ? '<span class="ev-allday">Journée</span>' : `${esc(ev.time)}${ev.end ? `<small>${esc(ev.end)}</small>` : ''}`}</span>
     <span class="ev-body"><span class="ev-title">${esc(ev.title)}</span>${meta ? `<div class="ev-meta">${esc(meta)}</div>` : ''}</span>
     ${avatars(ev.who)}
   </button>`;
@@ -346,7 +348,7 @@ function navButtons() {
 }
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
-    <nav class="sidebar"><div class="brand"><img src="icon.svg" alt=""><div>Notre Maison<small id="fam-name">${esc(state.family.name)}</small></div></div>
+    <nav class="sidebar"><div class="brand"><img src="icon.svg" alt=""><div><span class="brand-name">Notre Maison</span><small id="fam-name">${esc(state.family.name)}</small></div></div>
       <div id="nav-side"></div></nav>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>
@@ -369,7 +371,7 @@ function refresh() {
   const chat = $('#chat');
   const nearBottom = !chat || chat.scrollHeight - chat.scrollTop - chat.clientHeight < 80;
 
-  main.className = state.view === 'messages' ? 'fill' : '';
+  main.className = (state.view === 'messages' ? 'fill' : '') + (entering ? ' enter' : '');
   main.innerHTML = (backend.mode === 'demo' && state.view !== 'messages'
     ? '<div class="demo-banner">Mode démo — les données restent sur cet appareil. Ajoutez votre configuration Firebase dans <b>config.js</b> pour synchroniser tous les appareils (voir LISEZMOI.md).</div>' : '')
     + VIEWS[state.view]();
@@ -380,8 +382,12 @@ function refresh() {
   if (c2 && nearBottom) c2.scrollTop = c2.scrollHeight;
   autoGrow($('#msg-input'));
 }
+// L'animation d'entrée ne joue qu'au changement d'écran, pas à chaque synchronisation.
+let entering = false, enterTimer = null;
 function go(view) {
   state.view = view;
+  entering = true; clearTimeout(enterTimer);
+  enterTimer = setTimeout(() => { entering = false; $('#main')?.classList.remove('enter'); }, 800);
   markSeen();
   refresh();
   $('#main').scrollTop = 0;
@@ -398,9 +404,12 @@ const VIEWS = {
     const important = state.notes.filter((n) => !n.done).sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0) || b.ts - a.ts).slice(0, 7);
     const lastMsgs = state.messages.slice(-4);
     const hello = now.getHours() < 5 ? 'Bonne nuit' : now.getHours() < 18 ? 'Bonjour' : 'Bonsoir';
+    const dateTxt = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="dash-head">
-        <div><div class="clock" id="clock">${pad(now.getHours())}:${pad(now.getMinutes())}</div>
-          <div class="today-label" id="today-label">${fmtLong(now)} · ${hello} ${esc(state.me.name)}</div></div>
+        <div class="hero">
+          <div class="eyebrow">${hello}, ${esc(state.me.name)} · ${esc(state.family.name)}</div>
+          <div class="clock" id="clock">${clockHtml(now)}</div>
+          <div class="today-label">${esc(dateTxt)}</div></div>
         <div class="quick">
           <button class="btn btn-primary" data-action="new-event" data-date="${t}">${ICON.plus} Rendez-vous</button>
           <button class="btn" data-action="nav" data-view="important">${ICON.star} Pense-bête</button>
@@ -437,7 +446,7 @@ const VIEWS = {
         ${list.length ? `<span class="dots">${list.slice(0, 4).map((ev) => `<span class="dot" style="--c:${esc(evColor(ev))}"></span>`).join('')}</span>` : ''}
       </button>`;
     }).join('');
-    return `<div class="view-head"><h1>Agenda</h1>
+    return `<div class="view-head"><div><div class="eyebrow">Le planning de la famille</div><h1>Agenda</h1></div>
         <div class="cal-nav"><button class="btn btn-icon" data-action="month" data-delta="-1" aria-label="Mois précédent">${ICON.left}</button>
           <h2>${m.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2>
           <button class="btn btn-icon" data-action="month" data-delta="1" aria-label="Mois suivant">${ICON.right}</button>
@@ -453,7 +462,9 @@ const VIEWS = {
 
   messages() {
     let html = '', lastDay = '';
-    for (const m of state.messages) {
+    const popAfter = renderedMsgTs;
+  renderedMsgTs = state.messages.length ? state.messages[state.messages.length - 1].ts : 0;
+  for (const m of state.messages) {
       const day = ymd(new Date(m.ts));
       if (day !== lastDay) {
         lastDay = day;
@@ -461,9 +472,9 @@ const VIEWS = {
         html += `<div class="day-sep">${esc(label)}</div>`;
       }
       const mine = m.author === state.user.uid, a = member(m.author);
-      html += `<div class="msg ${mine ? 'mine' : ''}">${mine ? '' : `<span class="msg-author" style="--c:${esc(a.color)}">${esc(a.name)}</span>`}${esc(m.text)}<span class="msg-time">${fmtTime(m.ts)}</span></div>`;
+      html += `<div class="msg ${mine ? 'mine' : ''} ${popAfter && m.ts > popAfter ? 'pop' : ''}">${mine ? '' : `<span class="msg-author" style="--c:${esc(a.color)}">${esc(a.name)}</span>`}${esc(m.text)}<span class="msg-time">${fmtTime(m.ts)}</span></div>`;
     }
-    return `<div class="view-head" style="margin-bottom:8px"><h1>Messages</h1><div class="avatars">${state.members.map(avatar).join('')}</div></div>
+    return `<div class="view-head" style="margin-bottom:8px"><div><div class="eyebrow">${esc(state.family.name)}</div><h1>Messages</h1></div><div class="avatars">${state.members.map(avatar).join('')}</div></div>
       <div class="chat" id="chat">${html || '<div class="empty" style="margin:auto">Écrivez le premier message à la famille 👋</div>'}</div>
       <form class="composer" id="msg-form"><textarea id="msg-input" rows="1" placeholder="Écrire un message…" maxlength="2000"></textarea>
         <button class="btn btn-primary" aria-label="Envoyer">${ICON.send}</button></form>`;
@@ -472,7 +483,7 @@ const VIEWS = {
   important() {
     const open = state.notes.filter((n) => !n.done).sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0) || b.ts - a.ts);
     const done = state.notes.filter((n) => n.done).sort((a, b) => (b.doneTs || 0) - (a.doneTs || 0));
-    return `<div class="view-head"><h1>Pense-bête</h1></div>
+    return `<div class="view-head"><div><div class="eyebrow">Ce qu’il ne faut pas oublier</div><h1>Pense-bête</h1></div></div>
       <form class="note-add" id="note-form">
         <input type="text" id="note-input" placeholder="Choses importantes, courses, à faire…" maxlength="300">
         <button type="button" class="toggle-imp ${state.noteImportant ? 'on' : ''}" data-action="toggle-imp">★ Important</button>
@@ -489,7 +500,7 @@ const VIEWS = {
     const tablet = ls.get('maison-tablet') === '1';
     const theme = ls.get('maison-theme', 'auto');
     const notif = !('Notification' in window) ? 'unsupported' : Notification.permission;
-    return `<div class="view-head"><h1>Réglages</h1></div>
+    return `<div class="view-head"><div><div class="eyebrow">Profil, foyer et appareil</div><h1>Réglages</h1></div></div>
       <div class="settings">
         <section class="card"><h2 style="margin-bottom:14px">Mon profil</h2>
           <form id="profile-form" data-color="${esc(state.me.color)}">
@@ -731,7 +742,7 @@ let lastDay = todayStr();
 setInterval(() => {
   const now = new Date();
   const clock = $('#clock');
-  if (clock) clock.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (clock) clock.innerHTML = clockHtml(now);
   if (todayStr() !== lastDay) { lastDay = todayStr(); if ($('#main') && !$('#modal-root').innerHTML) refresh(); } // minuit : on passe au jour suivant
 }, 15000);
 
