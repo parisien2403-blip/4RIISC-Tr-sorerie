@@ -691,6 +691,8 @@ let currentTab = 'resume';
 let cotisantsSearch = '';
 let cotisantsSort = { key: 'nom', dir: 'asc' };
 let cotisantsUnpaidOnly = false;
+let cotisExportYear = '';
+let cotisExportFilter = 'all';
 let stockSearch = '';
 let ledgerSearch = { recettes: '', depenses: '' };
 let bankSearch = '';
@@ -1645,6 +1647,8 @@ function renderCotisants(){
       <button class="btn btn-primary btn-full" id="add-member-btn">Ajouter le cotisant</button>
     </div>
 
+    ${list.length > 0 ? renderCotisExportCard() : ''}
+
     <div class="card section-gap">
       <div class="flex-between" style="margin-bottom:14px; flex-wrap:wrap; gap:10px;">
         <h3 style="margin:0;">Registre des cotisations (${(q||cotisantsUnpaidOnly) ? filteredList.length + ' / ' + list.length : list.length})</h3>
@@ -1697,6 +1701,168 @@ function renderCotisants(){
       `}
     </div>
   `;
+}
+
+// ===== Export de la liste des cotisants (PDF / Excel) =====
+function cotisExportSelection(){
+  const years = state.members.years;
+  const currentYear = years[years.length-1];
+  const yearSel = (cotisExportYear === 'all' || years.some(y => String(y) === cotisExportYear)) ? cotisExportYear : String(currentYear);
+  // en mode "toutes les années", le statut à jour / non payé se base sur l'année en cours
+  const refYear = yearSel === 'all' ? currentYear : years.find(y => String(y) === yearSel);
+  const exportYears = yearSel === 'all' ? years : [refYear];
+  const all = [...state.members.list].sort((a,b) => (a.nom+' '+a.prenom).toLowerCase().localeCompare((b.nom+' '+b.prenom).toLowerCase(), 'fr'));
+  const paid = all.filter(m => cotisAmount(m, refYear) > 0);
+  const unpaid = all.filter(m => cotisAmount(m, refYear) === 0);
+  const members = cotisExportFilter === 'paid' ? paid : cotisExportFilter === 'unpaid' ? unpaid : all;
+  return { yearSel, refYear, exportYears, all, paid, unpaid, members };
+}
+
+function renderCotisExportCard(){
+  const years = state.members.years;
+  const sel = cotisExportSelection();
+  const yearOpts = [...years].reverse().map(y => `<option value="${y}" ${sel.yearSel===String(y)?'selected':''}>${y}</option>`).join('')
+    + (years.length > 1 ? `<option value="all" ${sel.yearSel==='all'?'selected':''}>Toutes les années</option>` : '');
+  const filterOpts = [
+    ['all', `Tous (${sel.all.length})`],
+    ['paid', `À jour (${sel.paid.length})`],
+    ['unpaid', `Pas encore payé (${sel.unpaid.length})`],
+  ].map(([v,l]) => `<option value="${v}" ${cotisExportFilter===v?'selected':''}>${l}</option>`).join('');
+  return `
+    <div class="card section-gap">
+      <h3 style="margin:0 0 12px;">📤 Exporter la liste des cotisants</h3>
+      <div class="row-2">
+        <div class="field"><label>Année</label><select id="cotis-export-year">${yearOpts}</select></div>
+        <div class="field"><label>Qui inclure ?</label><select id="cotis-export-filter">${filterOpts}</select></div>
+      </div>
+      <div class="row-2" style="margin-top:4px;">
+        <button class="btn btn-primary btn-full" id="cotis-export-pdf" ${sel.members.length===0?'disabled':''}>📄 PDF</button>
+        <button class="btn btn-ghost btn-full" id="cotis-export-csv" ${sel.members.length===0?'disabled':''}>📊 Excel</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-top:10px;">${sel.yearSel==='all' ? `Statut « à jour » calculé sur ${sel.refYear}. ` : ''}Le fichier se télécharge sur ton téléphone : tu peux ensuite l'envoyer à la présidente par mail ou WhatsApp.</div>
+    </div>`;
+}
+
+function cotisExportFileBase(sel){
+  const f = cotisExportFilter === 'paid' ? '-a-jour' : cotisExportFilter === 'unpaid' ? '-non-payes' : '';
+  return `cotisants-${sel.yearSel==='all' ? 'toutes-annees' : sel.yearSel}${f}`;
+}
+
+function exportCotisantsPdf(){
+  if(typeof window.jspdf === 'undefined'){ showToast("Le générateur PDF n'a pas pu se charger (vérifie ta connexion)"); return; }
+  const sel = cotisExportSelection();
+  if(sel.members.length === 0){ showToast('Aucun cotisant à exporter'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 16;
+  let y = 18;
+  const today = new Date().toLocaleDateString('fr-FR');
+  const periodLabel = sel.yearSel === 'all' ? 'Toutes les années' : 'Année ' + sel.yearSel;
+  const filterLabel = cotisExportFilter === 'paid' ? ' · à jour' : cotisExportFilter === 'unpaid' ? ' · non payés' : '';
+  // les polices du PDF ne connaissent pas l'espace fine insécable utilisée pour les milliers
+  const pfmt = n => fmt(n).replace(/[\u202F\u00A0]/g, ' ');
+
+  // en-tête
+  try{ doc.addImage(LOGO_URI, 'PNG', marginX, y - 4, 14, 14); }catch(e){}
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text('Les Phénix — 4°RIISC', marginX + 18, y + 2);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110);
+  doc.text(`Liste des cotisants · ${periodLabel}${filterLabel} · éditée le ${today}`, marginX + 18, y + 7);
+  doc.setTextColor(20);
+  y += 18;
+  doc.setDrawColor(20); doc.setLineWidth(0.6);
+  doc.line(marginX, y, pageWidth - marginX, y);
+  y += 8;
+
+  // synthèse
+  const collected = sel.members.reduce((s,m) => s + sel.exportYears.reduce((s2,yr) => s2 + cotisAmount(m, yr), 0), 0);
+  const stats = [
+    ['Membres', String(sel.all.length)],
+    ['À jour' + (sel.yearSel==='all' ? ' ('+sel.refYear+')' : ''), String(sel.paid.length)],
+    ['Non payé' + (sel.yearSel==='all' ? ' ('+sel.refYear+')' : ''), String(sel.unpaid.length)],
+    ['Total collecté', pfmt(collected)],
+  ];
+  doc.autoTable({
+    startY: y, margin: { left: marginX, right: marginX },
+    head: [stats.map(s=>s[0])], body: [stats.map(s=>s[1])],
+    theme: 'grid', styles: { halign: 'center', fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [245,245,245], textColor: 20, fontStyle: 'bold' },
+    bodyStyles: { fontStyle: 'bold', fontSize: 11 },
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // tableau des cotisants
+  const single = sel.exportYears.length === 1;
+  const head = single ? ['Nom Prénom', 'Montant', 'Mode', 'Statut'] : ['Nom Prénom', ...sel.exportYears.map(String), 'Statut ' + sel.refYear];
+  const body = sel.members.map(m => {
+    const name = `${m.nom.toUpperCase()} ${m.prenom}`.trim();
+    const ok = cotisAmount(m, sel.refYear) > 0;
+    const status = ok ? 'À jour' : 'Non payé';
+    if(single){
+      const amt = cotisAmount(m, sel.refYear);
+      return [name, amt > 0 ? pfmt(amt) : '—', amt > 0 ? cotisMode(m, sel.refYear) : '', status];
+    }
+    return [name, ...sel.exportYears.map(yr => cotisAmount(m, yr) > 0 ? pfmt(cotisAmount(m, yr)) : '—'), status];
+  });
+  const statusCol = head.length - 1;
+  doc.autoTable({
+    startY: y, margin: { left: marginX, right: marginX },
+    head: [head], body,
+    theme: 'grid', styles: { fontSize: 9.5, cellPadding: 2.4, halign: 'center' },
+    headStyles: { fillColor: [20,20,20], textColor: 255, fontStyle: 'bold' },
+    columnStyles: { 0: { halign: 'left' } },
+    didParseCell: (data) => {
+      if(data.section === 'head' && data.column.index === 0) data.cell.styles.halign = 'left';
+      if(data.section === 'body' && data.column.index === statusCol){
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.textColor = data.cell.raw === 'À jour' ? [31,138,91] : [224,57,62];
+      }
+    },
+  });
+
+  // numéros de page
+  const pageCount = doc.internal.getNumberOfPages();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  for(let i = 1; i <= pageCount; i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(140);
+    doc.text(`Page ${i} / ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+  }
+
+  doc.save(cotisExportFileBase(sel) + '.pdf');
+  showToast('PDF téléchargé');
+}
+
+function exportCotisantsCsv(){
+  const sel = cotisExportSelection();
+  if(sel.members.length === 0){ showToast('Aucun cotisant à exporter'); return; }
+  // format Excel français : séparateur « ; » et virgule décimale
+  const cell = v => { const t = String(v == null ? '' : v); return /[";\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const num = n => n > 0 ? String(Math.round(n * 100) / 100).replace('.', ',') : '';
+  const lines = [];
+  const head = ['Nom', 'Prénom'];
+  sel.exportYears.forEach(yr => head.push(`Montant ${yr} (€)`, `Mode ${yr}`));
+  head.push('Statut ' + sel.refYear);
+  lines.push(head.map(cell).join(';'));
+  sel.members.forEach(m => {
+    const row = [m.nom.toUpperCase(), m.prenom];
+    sel.exportYears.forEach(yr => {
+      const amt = cotisAmount(m, yr);
+      row.push(num(amt), amt > 0 ? cotisMode(m, yr) : '');
+    });
+    row.push(cotisAmount(m, sel.refYear) > 0 ? 'À jour' : 'Non payé');
+    lines.push(row.map(cell).join(';'));
+  });
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = cotisExportFileBase(sel) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  showToast('Fichier Excel téléchargé');
 }
 
 function renderLedger(kind){
@@ -2818,6 +2984,18 @@ function attachHandlers(){
       render();
     };
   }
+  const cotisExportYearSel = document.getElementById('cotis-export-year');
+  if(cotisExportYearSel){
+    cotisExportYearSel.onchange = () => { cotisExportYear = cotisExportYearSel.value; render(); };
+  }
+  const cotisExportFilterSel = document.getElementById('cotis-export-filter');
+  if(cotisExportFilterSel){
+    cotisExportFilterSel.onchange = () => { cotisExportFilter = cotisExportFilterSel.value; render(); };
+  }
+  const cotisExportPdfBtn = document.getElementById('cotis-export-pdf');
+  if(cotisExportPdfBtn) cotisExportPdfBtn.onclick = () => exportCotisantsPdf();
+  const cotisExportCsvBtn = document.getElementById('cotis-export-csv');
+  if(cotisExportCsvBtn) cotisExportCsvBtn.onclick = () => exportCotisantsCsv();
   const copyUnpaidBtn = document.getElementById('copy-unpaid-btn');
   if(copyUnpaidBtn){
     copyUnpaidBtn.onclick = async () => {
