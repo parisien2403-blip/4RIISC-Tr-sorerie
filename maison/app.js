@@ -1,4 +1,4 @@
-// Notre Maison — agenda, messages et pense-bête partagés par la famille.
+// Kids & Co (Famille & partage) — agenda, messages et pense-bête partagés par la famille.
 // Un seul code pour la tablette de la cuisine, les PC et les téléphones (Android / iOS).
 // Les données passent par Firebase (voir config.js) ; sans configuration, mode démo local.
 import { firebaseConfig } from './config.js';
@@ -225,7 +225,7 @@ function evItem(ev, withDate) {
 /* ================= Écrans de connexion ================= */
 function renderLogin(mode = 'login', error = '') {
   $('#app').innerHTML = `<div class="auth"><form class="card" id="login-form">
-    <div class="auth-logo"><img src="icon.svg" alt=""><div><h1>Notre Maison</h1><div class="muted">Agenda et messages de la famille</div></div></div>
+    <div class="auth-logo"><img src="logo.png" alt=""><div><h1 class="wordmark">Kids &amp; Co</h1><div class="tagline">Famille &amp; partage</div></div></div>
     <div class="seg"><button type="button" class="${mode === 'login' ? 'on' : ''}" data-action="auth-mode" data-mode="login">Se connecter</button>
       <button type="button" class="${mode === 'signup' ? 'on' : ''}" data-action="auth-mode" data-mode="signup">Créer un compte</button></div>
     <label class="field"><span>Adresse e-mail</span><input type="email" name="email" autocomplete="email" required></label>
@@ -247,7 +247,7 @@ function renderSetup(profile) {
   const cloud = backend.mode === 'cloud';
   const color = profile?.color || COLORS[Math.floor(Math.random() * COLORS.length)];
   $('#app').innerHTML = `<div class="auth"><form class="card" id="setup-form" data-color="${color}" data-choice="create">
-    <div class="auth-logo"><img src="icon.svg" alt=""><div><h1>Bienvenue !</h1><div class="muted">Présentez-vous à la famille</div></div></div>
+    <div class="auth-logo"><img src="logo.png" alt=""><div><h1>Bienvenue !</h1><div class="muted">Présentez-vous à la famille</div></div></div>
     <label class="field"><span>Votre prénom (ou « Maison » pour la tablette)</span><input type="text" name="name" value="${esc(profile?.name || '')}" maxlength="30" required></label>
     <div class="field"><span>Votre couleur</span>${colorPicker(color)}</div>
     ${cloud ? `<div class="seg" style="margin-top:8px"><button type="button" class="on" data-action="setup-choice" data-choice="create">Créer notre foyer</button>
@@ -329,7 +329,7 @@ function onMessages(list) {
     const who = member(m.author).name;
     if (state.view !== 'messages' || document.hidden) toast(`💬 ${who} : ${m.text.slice(0, 80)}`);
     if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      try { new Notification(`${who} — Notre Maison`, { body: m.text.slice(0, 140), icon: 'icon-192.png', tag: 'maison-msg' }); } catch {}
+      try { new Notification(`${who} — Kids & Co`, { body: m.text.slice(0, 140), icon: 'icon-192.png', tag: 'maison-msg' }); } catch {}
     }
   }
   markSeen();
@@ -348,8 +348,10 @@ function navButtons() {
 }
 function renderShell() {
   $('#app').innerHTML = `<div class="shell">
-    <nav class="sidebar"><div class="brand"><img src="icon.svg" alt=""><div><span class="brand-name">Notre Maison</span><small id="fam-name">${esc(state.family.name)}</small></div></div>
+    <nav class="sidebar"><div class="brand"><img src="logo.png" alt=""><span class="brand-name">Kids &amp; Co</span><small id="fam-name">${esc(state.family.name)}</small></div>
       <div id="nav-side"></div></nav>
+    <header class="topbar"><img src="logo.png" alt=""><div><span class="brand-name">Kids &amp; Co</span><small id="fam-name-top">${esc(state.family.name)}</small></div>
+      <button class="me-btn" data-action="nav" data-view="reglages" aria-label="Réglages" id="me-btn"></button></header>
     <main id="main"></main>
     <nav class="tabbar" id="nav-tab"></nav>
   </div>`;
@@ -363,7 +365,9 @@ function refresh() {
   $('#nav-side').innerHTML = navButtons();
   $('#nav-tab').innerHTML = navButtons();
   $('#fam-name').textContent = state.family.name;
-  document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Notre Maison';
+  $('#fam-name-top').textContent = state.family.name;
+  $('#me-btn').innerHTML = avatar(state.me);
+  document.title = (unreadCount() ? `(${unreadCount()}) ` : '') + 'Kids & Co';
 
   const kept = {};
   main.querySelectorAll('input[id],textarea[id]').forEach((el) => { kept[el.id] = el.value; });
@@ -407,7 +411,7 @@ const VIEWS = {
     const dateTxt = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="dash-head">
         <div class="hero">
-          <div class="eyebrow">${hello}, ${esc(state.me.name)} · ${esc(state.family.name)}</div>
+          <div class="greet">${hello} ${esc(state.me.name)}</div>
           <div class="clock" id="clock">${clockHtml(now)}</div>
           <div class="today-label">${esc(dateTxt)}</div></div>
         <div class="quick">
@@ -416,14 +420,14 @@ const VIEWS = {
           <button class="btn" data-action="nav" data-view="messages">${ICON.chat} Message</button>
         </div></div>
       <div class="dash-grid">
-        <section class="card"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
+        <section class="card tint-peach"><div class="card-head"><h2>Aujourd’hui</h2><span class="muted small">${today.length || 'Rien'} prévu${today.length > 1 ? 's' : ''}</span></div>
           <div class="list">${today.map((ev) => evItem(ev)).join('') || '<div class="empty">Journée libre ☀️</div>'}</div></section>
-        <section class="card"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
+        <section class="card tint-butter"><div class="card-head"><h2>À ne pas oublier</h2><button class="btn btn-sm" data-action="nav" data-view="important">Tout voir</button></div>
+          <div class="list">${important.map(noteItem).join('') || '<div class="empty">Rien à signaler.</div>'}</div></section>
+        <section class="card tint-mint"><div class="card-head"><h2>À venir</h2><button class="btn btn-sm" data-action="nav" data-view="agenda">Agenda</button></div>
           ${upcoming.map((d) => `<div class="day-group"><h3>${d === ymd(addDays(now, 1)) ? 'Demain' : esc(fmtLong(parseYmd(d)))}</h3>
             <div class="list">${map[d].map((ev) => evItem(ev)).join('')}</div></div>`).join('') || '<div class="empty">Rien dans les 2 prochaines semaines.</div>'}</section>
-        <section class="card"><div class="card-head"><h2>À ne pas oublier</h2><button class="btn btn-sm" data-action="nav" data-view="important">Tout voir</button></div>
-          <div class="list">${important.map(noteItem).join('') || '<div class="empty">Rien à signaler.</div>'}</div></section>
-        <section class="card"><div class="card-head"><h2>Derniers messages</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Discuter</button></div>
+        <section class="card tint-sky"><div class="card-head"><h2>Derniers messages</h2><button class="btn btn-sm" data-action="nav" data-view="messages">Discuter</button></div>
           <div class="list">${lastMsgs.map((m) => { const a = member(m.author); return `<div class="mini-msg">${avatar(a)}<div><b>${esc(a.name)}</b> <span class="muted small">${fmtTime(m.ts)}</span><p>${esc(m.text)}</p></div></div>`; }).join('') || '<div class="empty">Aucun message pour l’instant.</div>'}</div></section>
       </div>`;
   },
@@ -643,8 +647,8 @@ const ACTIONS = {
     if (confirm(`Effacer ${done.length} élément(s) terminé(s) ?`)) done.forEach((n) => save(backend.remove('notes', n.id)));
   },
   async 'share-code'() {
-    const text = `Rejoins notre foyer sur Notre Maison avec le code : ${state.family.id}\n${location.href.split('#')[0]}`;
-    if (navigator.share) { try { await navigator.share({ title: 'Notre Maison', text }); } catch {} return; }
+    const text = `Rejoins notre foyer sur Kids & Co avec le code : ${state.family.id}\n${location.href.split('#')[0]}`;
+    if (navigator.share) { try { await navigator.share({ title: 'Kids & Co', text }); } catch {} return; }
     try { await navigator.clipboard.writeText(text); toast('Code copié'); } catch { toast('Code : ' + state.family.id); }
   },
   'toggle-tablet'() { ls.set('maison-tablet', ls.get('maison-tablet') === '1' ? '0' : '1'); applyTablet(); refresh(); },

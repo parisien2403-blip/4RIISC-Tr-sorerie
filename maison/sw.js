@@ -1,9 +1,9 @@
-// Service Worker — Notre Maison
+// Service Worker — Kids & Co
 // Pages et fichiers de l'appli : réseau d'abord (toujours la dernière version), cache si hors ligne.
 // SDK Firebase et polices Google : cache d'abord. Les échanges de données Firebase ne passent pas par ici.
 
-const CACHE_NAME = 'notre-maison-v2';
-const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './manifest.json', './icon.svg', './icon-192.png'];
+const CACHE_NAME = 'kidsandco-v3';
+const CORE_ASSETS = ['./', './index.html', './style.css', './app.js', './config.js', './manifest.json', './logo.png', './icon-192.png', './favicon.ico'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

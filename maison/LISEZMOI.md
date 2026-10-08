@@ -1,4 +1,4 @@
-# Notre Maison — agenda & messages de la famille
+# Kids & Co — Famille & partage
 
 Une seule application pour **la tablette de la cuisine (la « maison mère »)**, les **PC**, et les **téléphones Android et iPhone**.
 Tout ce qu'un membre ajoute depuis son téléphone (rendez-vous, chose importante, message) apparaît **instantanément** sur la tablette et sur les autres appareils.
@@ -24,7 +24,7 @@ Pour l'ouvrir sur votre PC : `cd maison && python3 -m http.server 8000`, puis ht
 
 La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre gratuite suffit largement pour une famille.
 
-1. **Créer le projet** : allez sur https://console.firebase.google.com → *Ajouter un projet* (ex. « notre-maison »). Google Analytics n'est pas nécessaire.
+1. **Créer le projet** : allez sur https://console.firebase.google.com → *Ajouter un projet* (ex. « kids-and-co »). Google Analytics n'est pas nécessaire.
 2. **Activer la connexion** : *Build → Authentication → Commencer → Adresse e-mail/Mot de passe → Activer*.
 3. **Créer la base de données** : *Build → Firestore Database → Créer une base de données* (région `europe-west`, mode production).
 4. **Mettre les règles de sécurité** : onglet *Règles* de Firestore → remplacez tout par le contenu du fichier [`firestore.rules`](firestore.rules) → *Publier*.
@@ -56,7 +56,13 @@ La synchronisation entre appareils utilise **Firebase** (Google), dont l'offre g
 | `index.html`, `style.css`, `app.js` | L'application |
 | `config.js` | Votre configuration Firebase |
 | `firestore.rules` | Règles de sécurité à publier dans Firebase |
-| `manifest.json`, `sw.js`, icônes | Installation sur l'écran d'accueil et fonctionnement hors ligne |
+| `manifest.json`, `sw.js` | Installation sur l'écran d'accueil et fonctionnement hors ligne |
+| `logo.png` | Logo affiché dans l'appli |
+| `icon-192.png`, `icon-512.png` | Icône PC, tablette et Android |
+| `icon-192-maskable.png`, `icon-512-maskable.png` | Icône Android adaptative (ronde, en goutte, etc.) |
+| `apple-touch-icon.png` | Icône iPhone / iPad |
+| `favicon.ico`, `favicon-32.png` | Icône de l'onglet du navigateur |
+| `icon-1024.png` | Icône haute définition (Play Store / App Store si publication un jour) |
 
 ## Limites actuelles
 
